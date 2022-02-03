@@ -23,6 +23,7 @@ load_level = True
 level = 2
 
 bg_img = pg.image.load('Platformer/Assets/background.png')
+restart_img = pg.image.load('Platformer/Assets/restart.png')
 class World():
     def __init__(self,data):
         self.tile_list = []
@@ -59,7 +60,6 @@ class World():
     def draw(self):
         for tile in self.tile_list:
             screen.blit(tile[0], tile[1])
-            pg.draw.rect(screen, (255, 255, 255), tile[1], 2)
 
         self.images_right = []
         self.images_left = []
@@ -69,24 +69,29 @@ class World():
         self.images_right.append(img_right)
         self.images_left.append(img_left)
 
-class Player():
-    def __init__(self, x, y):
-        self.images_right = []
-        self.images_left = []
-        img = pg.image.load('platformer/assets/player.png')
-        self.image = pg.transform.scale(img, (40, 80))
-        img_right = self.image
-        img_left = pg.transform.flip(img_right, True, False)
-        self.images_right.append(img_right)
-        self.images_left.append(img_left)
+class Button():
+    def __init__(self, x, y, image):
+        self.image = image
         self.rect = self.image.get_rect()
         self.rect.x = x
         self.rect.y = y
-        self.width = self.image.get_width()
-        self.height = self.image.get_height()
-        self.vel_y = 0
-        self.jumped = False
-        self.direction = 0
+        self.clicked = False
+
+    def draw(self):
+        action = False
+        pos = pg.mouse.get_pos()
+        if self.rect.collidepoint(pos):
+            if pg.mouse.get_pressed()[0] == 1 and self.clicked == False:
+                action = True
+                self.clicked = True
+        if pg.mouse.get_pressed()[0] == 0:
+            self.clicked = False
+        screen.blit(self.image, self.rect)
+        return action
+
+class Player():
+    def __init__(self, x, y):
+        self.reset(x,y)
     
     def update(self, game_over):
         
@@ -96,7 +101,7 @@ class Player():
         if game_over == 0:
 
             key = pg.key.get_pressed()
-            if key[pg.K_SPACE] and self.jumped == False:
+            if key[pg.K_SPACE] and self.jumped == False and self.in_air == False:
                 self.vel_y = -15
                 self.jumped = True
             if key[pg.K_SPACE] == False:
@@ -122,6 +127,7 @@ class Player():
             if self.direction == -1:
                 self.image = self.images_left[self.index]
 
+            self.in_air = True
             for tile in world.tile_list:
                 if tile[1].colliderect(self.rect.x + dx, self.rect.y, self.width, self.height):
                         dx = 0
@@ -132,6 +138,7 @@ class Player():
                     elif self.vel_y >= 0:
                         dy = tile[1].top - self.rect.bottom
                         self.vel_y = 0 
+                        self.in_air = False
             
             if pg.sprite.spritecollide(self, blob_group, False):
                 game_over = -1
@@ -141,10 +148,35 @@ class Player():
             self.rect.x += dx
             self.rect.y += dy
 
+        elif game_over == -1:
+            self.image = self.dead_image
+            if self.rect.y > 200 :
+                self.rect.y -= 5
+
         screen.blit(self.image, self.rect)
-        pg.draw.rect(screen, (255, 255, 255), self.rect, 2)
 
         return game_over
+
+    def reset(self,x,y):
+        self.images_right = []
+        self.images_left = []
+        img = pg.image.load('platformer/assets/player.png')
+        self.image = pg.transform.scale(img, (40, 80))
+        img_right = self.image
+        img_left = pg.transform.flip(img_right, True, False)
+        self.images_right.append(img_right)
+        self.images_left.append(img_left)
+        self.rect = self.image.get_rect()
+        img2 = pg.image.load('platformer/assets/ghost.png')
+        self.dead_image = pg.transform.scale(img2, (40,80))
+        self.rect.x = x
+        self.rect.y = y
+        self.width = self.image.get_width()
+        self.height = self.image.get_height()
+        self.vel_y = 0
+        self.jumped = False
+        self.direction = 0
+        self.in_air = True
 
 class Enemy(pg.sprite.Sprite):
     def __init__(self,x, y):
@@ -183,6 +215,8 @@ blob_group = pg.sprite.Group()
 
 world = World(world_data)
 
+restart_button = Button((screen_w // 2) - 200, (screen_h // 2) + 100, restart_img)
+
 run = True
 while run:
 
@@ -198,6 +232,12 @@ while run:
     lava_group.draw(screen)
 
     game_over = player.update(game_over)
+
+    if game_over == -1:
+        if restart_button.draw():
+            player.reset(100, screen_h - 130)
+            game_over = 0
+
     
 
     for event in pg.event.get():
